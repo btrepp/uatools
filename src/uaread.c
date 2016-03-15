@@ -29,7 +29,7 @@ int main(int argc, char** argv) {
         }
     }
     if(UA_NodeId_isNull(&node)){
-        printf("Usage %s namespace tag", argv[0]);
+        printf("Usage: %s namespace tag\n", argv[0]);
         return -1;
     }
 
