@@ -7,6 +7,9 @@ int main(int argc, char** argv) {
     const char* default_url = "opc.tcp://127.0.0.1:49380";
     const char* url = getenv("OPCUA_SERVER");
     url = url ? url: default_url;
+
+    UA_NodeId node = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER); //root;
+
 	UA_Client *client = UA_Client_new(UA_ClientConfig_standard, Logger_Stdout);
 	UA_StatusCode retval = UA_Client_connect(client, UA_ClientConnectionTCP,url);
 	if(retval != UA_STATUSCODE_GOOD) {
@@ -15,18 +18,14 @@ int main(int argc, char** argv) {
 	}
 
 	// Browse some objects
-	printf("Browsing nodes in objects folder:\n");
+	printf("Browsing nodes folder:\n");
 
 	UA_BrowseRequest bReq;
 	UA_BrowseRequest_init(&bReq);
 	bReq.requestedMaxReferencesPerNode = 0;
 	bReq.nodesToBrowse = UA_BrowseDescription_new();
 	bReq.nodesToBrowseSize = 1;
-
-	bReq.nodesToBrowse[0].nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER); //browse objects folder
-    if(argc>3){
-	    bReq.nodesToBrowse[0].nodeId = UA_NODEID_STRING(atoi(argv[2]),argv[3]);
-    }
+	bReq.nodesToBrowse[0].nodeId = node;
 	bReq.nodesToBrowse[0].resultMask = UA_BROWSERESULTMASK_ALL; //return everything
 
 	UA_BrowseResponse bResp = UA_Client_Service_browse(client, bReq);

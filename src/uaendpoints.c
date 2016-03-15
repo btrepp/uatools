@@ -1,5 +1,5 @@
 #include <stdio.h>
-
+#include <stdlib.h>
 #include "open62541.h"
 
 int main(int argc, char** argv) {
