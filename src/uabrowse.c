@@ -10,6 +10,26 @@ int main(int argc, char** argv) {
 
     UA_NodeId node = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER); //root;
 
+    if(argc==3) { 
+        //user has supplied opc node information to browse
+        char* endptr;
+        int ns = (int) strtol(argv[1],&endptr,10);
+
+        if(argv[1]==endptr){
+            printf("%s is not a valid namespace id\n",argv[1]);
+            return -1;
+        }
+
+        int nodeid = (int) strtol(argv[2], &endptr,10);
+        if(argv[1]!=endptr){
+            //Wasn't an integer, so assume string id
+            node = UA_NODEID_STRING(ns,argv[2]);
+        }else{
+            //It was a number so use numeric
+            node = UA_NODEID_NUMERIC(ns, nodeid);
+        }
+    }
+
 	UA_Client *client = UA_Client_new(UA_ClientConfig_standard, Logger_Stdout);
 	UA_StatusCode retval = UA_Client_connect(client, UA_ClientConnectionTCP,url);
 	if(retval != UA_STATUSCODE_GOOD) {
