@@ -1,5 +1,6 @@
 FROM btrepp/open62541
 ADD . /tmp/uatools
-WORKDIR /tmp/uatools
-RUN gcc -o uaconnect uaconnect.c  -lopen62541
+WORKDIR /tmp/uatools/build
+RUN cmake ..
+RUN make && make install
 
