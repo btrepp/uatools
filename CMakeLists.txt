@@ -12,6 +12,9 @@ find_library(OPEN62541 open62541)
 
 #my executable :)
 add_executable(uaconnect src/uaconnect.c )
+add_executable(uaendpoints src/uaendpoints.c )
 target_link_libraries(uaconnect ${OPEN62541})
+target_link_libraries(uaendpoints ${OPEN62541})
 
 install(TARGETS uaconnect DESTINATION bin)
+install(TARGETS uaendpoints DESTINATION bin)
