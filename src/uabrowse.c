@@ -4,8 +4,11 @@
 #include "open62541.h"
 
 int main(int argc, char** argv) {
+    const char* default_url = "opc.tcp://127.0.0.1:49380";
+    const char* url = getenv("OPCUA_SERVER");
+    url = url ? url: default_url;
 	UA_Client *client = UA_Client_new(UA_ClientConfig_standard, Logger_Stdout);
-	UA_StatusCode retval = UA_Client_connect(client, UA_ClientConnectionTCP,argv[1]);
+	UA_StatusCode retval = UA_Client_connect(client, UA_ClientConnectionTCP,url);
 	if(retval != UA_STATUSCODE_GOOD) {
 		UA_Client_delete(client);
 		return retval;
@@ -25,7 +28,6 @@ int main(int argc, char** argv) {
 	    bReq.nodesToBrowse[0].nodeId = UA_NODEID_STRING(atoi(argv[2]),argv[3]);
     }
 	bReq.nodesToBrowse[0].resultMask = UA_BROWSERESULTMASK_ALL; //return everything
-
 
 	UA_BrowseResponse bResp = UA_Client_Service_browse(client, bReq);
 	printf("%-9s %-16s %-16s %-16s\n", "NAMESPACE", "NODEID", "BROWSE NAME", "DISPLAY NAME");
