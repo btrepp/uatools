@@ -8,18 +8,16 @@ int main(int argc, char** argv) {
     url = url ? url: default_url;
 
     UA_NodeId node=UA_NODEID_NULL;
-    UA_Variant *variant = UA_Variant_new();
     if(argc==4) { 
         char* nodestring=argv[1];
         char* tagstring=argv[2];
-        char* valuestring= argv[3];
 
         //user has supplied opc node information to browse
         char* endptr;
         int ns = (int) strtol(nodestring,&endptr,10);
 
         if(*endptr!='\0'){
-            printf("%s is not a valid namespace id\n",nodestring);
+            fprintf(stderr,"%s is not a valid namespace id\n",nodestring);
             return -1;
         }
 
@@ -32,31 +30,11 @@ int main(int argc, char** argv) {
             node =UA_NODEID_NUMERIC(ns, nodeid);
         }
 
-        int valueasint= (int) strtol(valuestring, &endptr,10);
-        if(*endptr!='\0'){
-            UA_String string = UA_String_fromChars(valuestring);
-            UA_StatusCode code=UA_Variant_setScalarCopy(variant, &string, &UA_TYPES[UA_TYPES_STRING]);
-            if(code!=UA_STATUSCODE_GOOD){
-                return code;
-            }
-        }
-        else{
-            UA_Int32 value = valueasint;
-            UA_StatusCode code=UA_Variant_setScalarCopy(variant,&value, &UA_TYPES[UA_TYPES_INT32]);
-            if(code!=UA_STATUSCODE_GOOD){
-                return code;
-            }
-        }
     }
     if(UA_NodeId_isNull(&node)){
-        printf("Usage: %s namespace tag value\n", argv[0]);
+        fprintf(stderr,"Usage: %s namespace tag value\n", argv[0]);
         return -1;
     }
-    if(!UA_Variant_isScalar(variant)){
-       printf("Error determining value of %s", argv[3]);
-        return -1;
-    }
-
 
     UA_Client *client = UA_Client_new(UA_ClientConfig_standard, Logger_Stdout);
     UA_StatusCode retval = UA_Client_connect(client, UA_ClientConnectionTCP,url);
@@ -66,12 +44,75 @@ int main(int argc, char** argv) {
         return retval;
     }
 
-    retval = UA_Client_writeValueAttribute(client, node, variant);
-    UA_Variant_delete(variant);
+    //Read current value to determine datatype
+    UA_ReadRequest rReq;
+    UA_ReadRequest_init(&rReq);
+    rReq.nodesToRead =  UA_Array_new(1, &UA_TYPES[UA_TYPES_READVALUEID]);
+    rReq.nodesToReadSize = 1;
+    rReq.nodesToRead[0].nodeId = node;
+    rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_VALUE;
 
+    UA_ReadResponse rResp = UA_Client_Service_read(client, rReq);
+    const UA_DataType* type;
+    if(rResp.responseHeader.serviceResult == UA_STATUSCODE_GOOD &&
+            rResp.resultsSize > 0 && rResp.results[0].hasValue)
+    {
+        type = &(*rResp.results[0].value.type);
+    }
+
+    if(type==NULL){
+        fprintf(stderr,"Unable to determine tag type\n");
+        return -1;
+    }
+
+    char* valuestring= argv[3];
+    void* data;
+    int typeid = type->typeIndex;
+    switch(typeid){
+        case UA_TYPES_UINT16:
+        case UA_TYPES_INT32:{
+                                char* endptr;
+                                int valueasint= (int) strtol(valuestring, &endptr,10);
+                                if(*endptr=='\0'){
+                                    data= &valueasint;
+                                }
+                                else{
+                                    fprintf(stderr,"Input is not int: %s\n",valuestring);
+                                    return -1;
+                                }
+                                break;
+                            }
+        case UA_TYPES_STRING:{
+                                 UA_String string = UA_String_fromChars(valuestring);
+                                 data= &string;
+                                 break;
+                             }
+    }
+
+    if(data==NULL){
+        fprintf(stderr,"Error casting type for %s. OPCTypeId:%d, Check OPC Server type matches\n",valuestring,typeid);
+        return -1;
+    }
+
+
+    //Write value
+    UA_WriteRequest wReq;
+    UA_WriteRequest_init(&wReq);
+    wReq.nodesToWrite = UA_WriteValue_new();
+    wReq.nodesToWriteSize = 1;
+    wReq.nodesToWrite[0].nodeId = node;
+    wReq.nodesToWrite[0].attributeId = UA_ATTRIBUTEID_VALUE;
+    wReq.nodesToWrite[0].value.hasValue = true;
+    wReq.nodesToWrite[0].value.value.type = type;
+    wReq.nodesToWrite[0].value.value.storageType = UA_VARIANT_DATA_NODELETE; //do not free the integer on deletion
+    wReq.nodesToWrite[0].value.value.data = data;
+
+    UA_WriteResponse wResp = UA_Client_Service_write(client, wReq);
+    //UA_WriteRequest_deleteMembers(&wReq);
+    UA_WriteResponse_deleteMembers(&wResp);
     UA_Client_disconnect(client);
     UA_Client_delete(client);
 
-    return retval;
+    return wResp.responseHeader.serviceResult;
 
 }

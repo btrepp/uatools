@@ -52,7 +52,8 @@ int main(int argc, char** argv) {
             rResp.resultsSize > 0 && rResp.results[0].hasValue)
     {
         int value = *(UA_Int32*)rResp.results[0].value.data;
-        printf("the value is: %i\n", value);
+        UA_DataType type = *rResp.results[0].value.type;
+        printf("%s,%i,%d\n", argv[2],value,type.typeId.identifier.numeric);
     }
 
 
