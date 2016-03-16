@@ -18,13 +18,13 @@ int main(int argc, char** argv) {
         char* endptr;
         int ns = (int) strtol(nodestring,&endptr,10);
 
-        if(nodestring==endptr){
+        if(*endptr!='\0'){
             printf("%s is not a valid namespace id\n",nodestring);
             return -1;
         }
 
         int nodeid = (int) strtol(tagstring, &endptr,10);
-        if(tagstring!=endptr){
+        if(*endptr!='\0'){
             //Wasn't an integer, so assume string id
             node =UA_NODEID_STRING(ns,tagstring);
         }else{
@@ -33,15 +33,27 @@ int main(int argc, char** argv) {
         }
 
         int valueasint= (int) strtol(valuestring, &endptr,10);
-        if(valuestring!=endptr){
-            UA_Variant_setScalarCopy(variant, valuestring, &UA_TYPES[UA_TYPES_STRING]);
+        if(*endptr!='\0'){
+            UA_String string = UA_String_fromChars(valuestring);
+            UA_StatusCode code=UA_Variant_setScalarCopy(variant, &string, &UA_TYPES[UA_TYPES_STRING]);
+            if(code!=UA_STATUSCODE_GOOD){
+                return code;
+            }
         }
-        if(valuestring==endptr){
-            UA_Variant_setScalarCopy(variant,&valueasint, &UA_TYPES[UA_TYPES_INT32]);
+        else{
+            UA_Int32 value = valueasint;
+            UA_StatusCode code=UA_Variant_setScalarCopy(variant,&value, &UA_TYPES[UA_TYPES_INT32]);
+            if(code!=UA_STATUSCODE_GOOD){
+                return code;
+            }
         }
     }
-    if(UA_NodeId_isNull(&node) && !UA_Variant_isScalar(variant)){
+    if(UA_NodeId_isNull(&node)){
         printf("Usage: %s namespace tag value\n", argv[0]);
+        return -1;
+    }
+    if(!UA_Variant_isScalar(variant)){
+       printf("Error determining value of %s", argv[3]);
         return -1;
     }
 
@@ -54,10 +66,12 @@ int main(int argc, char** argv) {
         return retval;
     }
 
-    UA_Client_writeValueAttribute(client, node, variant);
+    retval = UA_Client_writeValueAttribute(client, node, variant);
     UA_Variant_delete(variant);
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
-    return 0;
+
+    return retval;
+
 }
