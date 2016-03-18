@@ -1,10 +1,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "open62541.h"
-
-
-void printUsage(char * binname){
-        fprintf(stderr,"Usage: %s namespace tag value\n", binname);
+void printUsage(int argc, char **argv){
+        fprintf(stderr,"Usage: %s namespace tag value\n", argv[0]);
+        fprintf(stderr,"\t %s ns=namespace;s=tag value\n", argv[0]);
+        char* called =argv[0];
+        for(int i=1;i<argc;i++){
+            char * current = argv[i];
+            char* dest = (char*)malloc(sizeof(char)*(strlen(called)+strlen(current)+2));
+            strcpy(dest,called);
+            dest=strcat(dest," ");
+            called=strcat(dest,current);
+        }
+        fprintf(stderr,"\t %s\n ",called);
 }
 
 int main(int argc, char** argv) {
@@ -52,7 +60,7 @@ int main(int argc, char** argv) {
     }
 
     if(UA_NodeId_isNull(&node)){
-        printUsage(argv[0]);
+        printUsage(argc,argv);
         return -1;
     }
 

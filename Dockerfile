@@ -5,5 +5,6 @@ RUN apk add --no-cache make musl-dev cmake gcc && rm -rf /var/cache/apk/* && \
     cmake .. && \
     make && \
     make install && \
-    apk del gcc cmake make musl-dev
+    apk del gcc cmake make musl-dev && \ 
+    rm -Rf /tmp/uatools
 
