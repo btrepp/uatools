@@ -1,7 +1,9 @@
-FROM btrepp/open62541
-RUN apk add --no-cache gdb  && rm -rf /var/cache/apk/*
+FROM btrepp/open62541:tiny
 ADD . /tmp/uatools
 WORKDIR /tmp/uatools/build
-RUN cmake ..
-RUN make && make install
+RUN apk add --no-cache cmake gcc && rm -rf /var/cache/apk/* && \
+    cmake .. && \
+    make && \
+    make install && \
+    apk del gcc cmake
 

@@ -2,15 +2,23 @@
 #include <stdlib.h>
 #include "open62541.h"
 
+
+void printUsage(char * binname){
+        fprintf(stderr,"Usage: %s namespace tag value\n", binname);
+}
+
 int main(int argc, char** argv) {
     const char* default_url = "opc.tcp://127.0.0.1:49380";
     const char* url = getenv("OPCUA_SERVER");
     url = url ? url: default_url;
 
     UA_NodeId node=UA_NODEID_NULL;
+    char* valuestring;
+
     if(argc==4) { 
         char* nodestring=argv[1];
         char* tagstring=argv[2];
+        valuestring= argv[3];
 
         //user has supplied opc node information to browse
         char* endptr;
@@ -29,10 +37,27 @@ int main(int argc, char** argv) {
             //It was a number so use numeric
             node =UA_NODEID_NUMERIC(ns, nodeid);
         }
-
     }
+
+    if(argc==3){
+        char* combinedstring = argv[1];
+        valuestring= argv[2];
+        char* tagstringbuffer = (char*) malloc(strlen(combinedstring)*sizeof(char));
+        int ns;
+        int conversions=sscanf(combinedstring,"ns=%d;s=%s",&ns,tagstringbuffer);
+
+        if(conversions==2){
+            node = UA_NODEID_STRING(ns,tagstringbuffer);
+        }
+    }
+
     if(UA_NodeId_isNull(&node)){
-        fprintf(stderr,"Usage: %s namespace tag value\n", argv[0]);
+        printUsage(argv[0]);
+        return -1;
+    }
+
+    if(valuestring==NULL){
+        fprintf(stderr, "BUG, value string was not set");
         return -1;
     }
 
@@ -65,7 +90,6 @@ int main(int argc, char** argv) {
         return -1;
     }
 
-    char* valuestring= argv[3];
     void* data;
     int typeid = type->typeIndex;
     switch(typeid){
