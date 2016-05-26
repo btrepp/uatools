@@ -114,7 +114,7 @@ int readTagType(UA_Client* client, const node* node, const UA_DataType** outdata
 int writeTag(UA_Client* client, const node* node, const UA_DataType* datatype, const char* textdata){
   UA_StatusCode ret;
   UA_Variant wiredata;
-  if((ret=convertInputToType(datatype,textdata,&wiredata))){
+  if(!(ret=convertInputToType(datatype,textdata,&wiredata))){
     ret=UA_Client_writeValueAttribute(client, UA_NODEID_STRING(node->ns,node->tag),&wiredata);
   }
   return ret;
