@@ -19,6 +19,17 @@ struct parsedLine{
   char* data;
 };
 
+typedef struct node node;
+struct node{
+  char* tag;
+  int ns;
+};
+
+void freeNode(node* node){
+  free(node->tag);
+  free(node);
+}
+
 void freeParsedLine(parsedLine* line){
   free(line->tag);
   free(line->data);
@@ -64,59 +75,16 @@ int parseLine(const char* data,int length, parsedLine** result){
   return returncode;
 }
 
-int determineTagType(UA_Client* client, UA_NodeId node, int* result){
-  //Read current value to determine datatype
-  UA_ReadRequest rReq;
-  UA_ReadRequest_init(&rReq);
-  rReq.nodesToRead =  UA_Array_new(1, &UA_TYPES[UA_TYPES_READVALUEID]);
-  rReq.nodesToReadSize = 1;
-  rReq.nodesToRead[0].nodeId = node;
-  rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_VALUE;
-
-  UA_ReadResponse rResp = UA_Client_Service_read(client, rReq);
-  const UA_DataType* type;
-  if(rResp.responseHeader.serviceResult == UA_STATUSCODE_GOOD &&
-      rResp.resultsSize > 0 && rResp.results[0].hasValue)
-  {
-    type = &(*rResp.results[0].value.type);
-    *result = type->typeIndex;
-  }
-
-  UA_ReadRequest_deleteMembers(&rReq);
-  UA_ReadResponse_deleteMembers(&rResp);
-  return 0;
-}
-
-int writeTag(UA_Client* client, UA_NodeId node, int datatype, void* payload){
-  UA_WriteRequest wReq;
-  UA_WriteRequest_init(&wReq);
-  wReq.nodesToWrite = UA_WriteValue_new();
-  wReq.nodesToWriteSize = 1;
-  wReq.nodesToWrite[0].nodeId = node;
-  wReq.nodesToWrite[0].attributeId = UA_ATTRIBUTEID_VALUE;
-  wReq.nodesToWrite[0].value.hasValue = true;
-  wReq.nodesToWrite[0].value.value.type = &UA_TYPES[datatype];
-  wReq.nodesToWrite[0].value.value.storageType = UA_VARIANT_DATA_NODELETE;
-  wReq.nodesToWrite[0].value.value.data = payload;
-
-  UA_WriteResponse wResp = UA_Client_Service_write(client, wReq);
-
-  int retval = wResp.responseHeader.serviceResult;
-  UA_WriteRequest_deleteMembers(&wReq);
-  UA_WriteResponse_deleteMembers(&wResp);
-
-  return retval;
-}
-
-int convertInputToType(int typeid, char* data, void**result){
+int convertInputToType(const UA_DataType* datatype,const char* data, UA_Variant *result){
   int retval = 0;
+  int typeid = datatype->typeIndex;
   switch(typeid){
     case UA_TYPES_UINT16:
     case UA_TYPES_INT32:{
                           char* endptr;
                           int valueasint= (int) strtol(data, &endptr,10);
                           if(*endptr=='\0'){
-                            *result= &valueasint;
+                            UA_Variant_setScalarCopy(result,&valueasint,&UA_TYPES[typeid]);
                           }
                           else{
                             retval = NOT_INT;
@@ -124,13 +92,32 @@ int convertInputToType(int typeid, char* data, void**result){
                           break;
                         }
     case UA_TYPES_STRING:{
-                           UA_String string = UA_String_fromChars(data);
-                           *result= &string;
+                           UA_String s= UA_STRING_ALLOC(data);
+                           UA_Variant_setScalarCopy(result,&s,&UA_TYPES[UA_TYPES_STRING]);
                            break;
                          }
 
   }
   return retval;
+}
+
+
+int readTagType(UA_Client* client, const node* node, const UA_DataType** outdatatype){
+  UA_StatusCode ret;
+  UA_NodeId uanode = UA_NODEID_STRING(node->ns,node->tag);
+  UA_Variant result;
+  ret = UA_Client_readValueAttribute(client,uanode,&result);
+  *outdatatype = result.type;
+  return ret;
+}
+
+int writeTag(UA_Client* client, const node* node, const UA_DataType* datatype, const char* textdata){
+  UA_StatusCode ret;
+  UA_Variant wiredata;
+  if((ret=convertInputToType(datatype,textdata,&wiredata))){
+    ret=UA_Client_writeValueAttribute(client, UA_NODEID_STRING(node->ns,node->tag),&wiredata);
+  }
+  return ret;
 }
 
 int main(int argc, char** argv) {
@@ -167,19 +154,16 @@ int main(int argc, char** argv) {
       continue;
     }
 
-    //Node to read
-    UA_NodeId node=UA_NODEID_STRING_ALLOC(2,parsed->tag);
+    node tag;
+    tag.ns=2;
+    tag.tag=parsed->tag;
 
-    int typeid;
-    if(determineTagType(client,node,&typeid)){
+    const UA_DataType* type;
+    if(readTagType(client,&tag,&type)){
       fprintf(stderr,"Unable to determine tag type: %s\n",parsed->tag);
     }
     else{
-      void* data=NULL;
-      if(convertInputToType(typeid,parsed->data,&data)){
-        fprintf(stderr,"Error casting type for %s. OPCTypeId:%d, Check OPC Server type matches\n",parsed->data,typeid);
-      }
-      if(data!=NULL && writeTag(client,node,typeid,data)){
+      if(writeTag(client,&tag,type,parsed->data)){
         fprintf(stderr,"Failed to write tag %s.",parsed->data);
       }
 
