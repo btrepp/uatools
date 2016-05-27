@@ -108,6 +108,8 @@ int readTagType(UA_Client* client, const node* node, const UA_DataType** outdata
   UA_Variant result;
   ret = UA_Client_readValueAttribute(client,uanode,&result);
   *outdatatype = result.type;
+  UA_Variant_deleteMembers(&result);
+
   return ret;
 }
 
@@ -117,6 +119,7 @@ int writeTag(UA_Client* client, const node* node, const UA_DataType* datatype, c
   if(!(ret=convertInputToType(datatype,textdata,&wiredata))){
     ret=UA_Client_writeValueAttribute(client, UA_NODEID_STRING(node->ns,node->tag),&wiredata);
   }
+  UA_Variant_deleteMembers(&wiredata);
   return ret;
 }
 
