@@ -167,7 +167,7 @@ int main(int argc, char** argv) {
     }
     else{
       if(writeTag(client,&tag,type,parsed->data)){
-        fprintf(stderr,"Failed to write tag %s.",parsed->data);
+        fprintf(stderr,"Failed to write tag %s %s.\n",parsed->tag,parsed->data);
       }
 
     }
