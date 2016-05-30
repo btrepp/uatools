@@ -127,6 +127,8 @@ int main(int argc, char** argv) {
   const char* default_url = "opc.tcp://127.0.0.1:49380";
   const char* url = getenv("OPCUA_SERVER");
   url = url ? url: default_url;
+  
+  const bool detail = getenv("UAWRITE_DEBUG") ? true: false;
 
   UA_Client *client = UA_Client_new(UA_ClientConfig_standard, Logger_Stdout);
   UA_StatusCode retval = UA_Client_connect(client, UA_ClientConnectionTCP,url);
@@ -148,6 +150,8 @@ int main(int argc, char** argv) {
       fprintf(stderr,"ERROR: %s\n",strerror(errno));
       return -1;
     }
+
+    if(detail){fprintf(stderr,"DEBUG: %s", buffer);}
 
     //TODO: shift to strtok
     parsedLine* parsed;
