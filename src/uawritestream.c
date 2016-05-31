@@ -40,6 +40,20 @@ int convertInputToType(const UA_DataType* datatype,const char* data, UA_Variant 
                            UA_Variant_setScalarCopy(result,&s,&UA_TYPES[UA_TYPES_STRING]);
                            break;
                          }
+    case UA_TYPES_FLOAT:{
+                          char *endptr;
+                          float valueasfloat = (float) strtof(data,&endptr);
+                          if(*endptr=='\0'){
+                            UA_Variant_setScalarCopy(result,&valueasfloat,&UA_TYPES[UA_TYPES_FLOAT]);
+                          }
+                          else{
+                            retval = UA_STATUSCODE_BADTYPEMISMATCH;
+                          }
+                          break;
+                        }
+    default:{
+              retval = UA_STATUSCODE_BADTYPEMISMATCH;
+          }
 
   }
   return retval;
