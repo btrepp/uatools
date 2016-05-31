@@ -4,20 +4,9 @@
 #include <errno.h>
 #include "open62541.h"
 
+#define MAX_ATTEMPTS 3
 #define READSIZE 1024
 #define DELIMITER ','
-
-
-#define NO_BUFFER -2
-#define MISSING_DELIMITER -3
-#define EXTRA_DELIMITER -4
-#define NOT_INT -5
-
-typedef struct parsedLine parsedLine;
-struct parsedLine{
-  char* tag;
-  char* data;
-};
 
 typedef struct node node;
 struct node{
@@ -28,51 +17,6 @@ struct node{
 void freeNode(node* node){
   free(node->tag);
   free(node);
-}
-
-void freeParsedLine(parsedLine* line){
-  free(line->tag);
-  free(line->data);
-  free(line);
-}
-
-//Parses a string to find the length.
-//Allocates the parsed line structure.
-//TODO rewrite this as it might leak.
-int parseLine(const char* data,int length, parsedLine** result){
-  int actualen = strlen(data);
-  int safelength = actualen< length ? actualen : length;
-  char* temp = (char*) malloc(sizeof(char)*safelength);
-  memcpy(temp,data,safelength);
-  temp[safelength]=0;
-  if(temp[safelength-1]=='\n'){
-    temp[safelength-1]=0;
-  }
-
-  char* comma = strchr(temp,DELIMITER); 
-
-  //Check if we found seperator
-  if(comma==NULL){
-    return MISSING_DELIMITER;
-  }
-
-  int returncode=0;
-  char* extra;
-  //Check for more commas
-  if((extra=strchr(comma+1,DELIMITER))!=NULL){
-    returncode = EXTRA_DELIMITER;
-    //Set the first next occurence to delimited.
-    //This is because any extra items should be ignored
-    extra=0;
-  }
-
-  *comma=0;
-  *result = (parsedLine*) malloc(sizeof(parsedLine)*1);
-  parsedLine* r = *result;
-  r->tag=temp;
-  r->data=comma+1;
-
-  return returncode;
 }
 
 int convertInputToType(const UA_DataType* datatype,const char* data, UA_Variant *result){
@@ -87,7 +31,7 @@ int convertInputToType(const UA_DataType* datatype,const char* data, UA_Variant 
                             UA_Variant_setScalarCopy(result,&valueasint,&UA_TYPES[typeid]);
                           }
                           else{
-                            retval = NOT_INT;
+                            retval = UA_STATUSCODE_BADTYPEMISMATCH;
                           }
                           break;
                         }
@@ -153,29 +97,46 @@ int main(int argc, char** argv) {
 
     if(detail){fprintf(stderr,"DEBUG: %s", buffer);}
 
-    //TODO: shift to strtok
-    parsedLine* parsed;
-    if(parseLine(buffer,READSIZE,&parsed)<0){
+    int ns;
+    char* tagstringbuffer= (char*) malloc(strlen(buffer)*sizeof(char));
+    char* databuffer = (char*) malloc(strlen(buffer)*sizeof(char));
+    int conversions=sscanf(buffer,"ns=%d;s=%[^,],%[^\n]",&ns,tagstringbuffer,databuffer);
+    if(conversions!=3 ){
       fprintf(stderr,"WARN: Skipping due to Unable to understand line format: %s", buffer); 
-      freeParsedLine(parsed);
+      free(tagstringbuffer);
+      free(databuffer);
       continue;
     }
 
     node tag;
-    tag.ns=2;
-    tag.tag=parsed->tag;
+    tag.ns=ns;
+    tag.tag=tagstringbuffer;
 
-    const UA_DataType* type;
-    if(readTagType(client,&tag,&type)){
-      fprintf(stderr,"Unable to determine tag type: %s\n",parsed->tag);
-    }
-    else{
-      if(writeTag(client,&tag,type,parsed->data)){
-        fprintf(stderr,"Failed to write tag %s %s.\n",parsed->tag,parsed->data);
+
+    int attempt=0;
+    do{
+      retval=UA_Client_connect(client, UA_ClientConnectionTCP,url);
+      const UA_DataType* type;
+      if(retval==UA_STATUSCODE_GOOD){
+        retval=readTagType(client,&tag,&type);
+        if(retval!=UA_STATUSCODE_GOOD){
+          fprintf(stderr,"Unable to determine tag type: %s",buffer);
+        }
       }
-
+      if(retval==UA_STATUSCODE_GOOD){
+        retval=writeTag(client,&tag,type,databuffer);
+        if(retval!=UA_STATUSCODE_GOOD){
+          fprintf(stderr,"Failed to write tag: %s",buffer);
+        }
+      }
+      attempt++;
+    } while(retval!=UA_STATUSCODE_GOOD && attempt<MAX_ATTEMPTS);
+    if(attempt>=MAX_ATTEMPTS){
+      fprintf(stderr,"Error with line attempted:%d %s",attempt,buffer);
     }
-    freeParsedLine(parsed);
+
+    free(tagstringbuffer);
+    free(databuffer);
   }
   UA_Client_disconnect(client);
   UA_Client_delete(client);
