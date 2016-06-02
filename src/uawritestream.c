@@ -5,6 +5,7 @@
 #include "open62541.h"
 
 #define MAX_ATTEMPTS 3
+#define MAX_CONSECUTIVE_ERRORS 30
 #define READSIZE 1024
 #define DELIMITER ','
 
@@ -99,11 +100,14 @@ int main(int argc, char** argv) {
 
   char* buffer = (char*) malloc( sizeof(char)*READSIZE);
 
+  int error_count;
   //Read stdin
   while(true){
 
     //Read newline delimited string
     if(fgets(buffer,READSIZE,stdin)==NULL){
+      UA_Client_disconnect(client);
+      UA_Client_delete(client);
       if(feof(stdin)){return 0;}
       fprintf(stderr,"ERROR: %s\n",strerror(errno));
       return -1;
@@ -142,17 +146,26 @@ int main(int argc, char** argv) {
         if(retval!=UA_STATUSCODE_GOOD){
           fprintf(stderr,"Failed to write tag: %s",buffer);
         }
+        else{
+            error_count=0;
+        }
       }
       attempt++;
     } while(retval!=UA_STATUSCODE_GOOD && attempt<MAX_ATTEMPTS);
     if(attempt>=MAX_ATTEMPTS){
       fprintf(stderr,"Error with line attempted:%d %s",attempt,buffer);
+      error_count++;
     }
 
     free(tagstringbuffer);
     free(databuffer);
+
+    if(error_count > MAX_CONSECUTIVE_ERRORS){
+        fprintf(stderr, "%d errors have occured in a row. Shutting down\n", error_count);
+        UA_Client_disconnect(client);
+        UA_Client_delete(client);
+        return -1;
+    }
   }
-  UA_Client_disconnect(client);
-  UA_Client_delete(client);
 }
 
