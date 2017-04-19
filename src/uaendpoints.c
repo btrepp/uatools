@@ -6,13 +6,13 @@ int main(int argc, char** argv) {
     const char* default_url = "opc.tcp://127.0.0.1:49380";
     const char* url = getenv("OPCUA_SERVER");
     url = url ? url: default_url;
-    UA_Client *client = UA_Client_new(UA_ClientConfig_standard, Logger_Stdout);
+    UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
 
     //listing endpoints
     UA_EndpointDescription* endpointArray = NULL;
     size_t endpointArraySize = 0;
     UA_StatusCode retval =
-        UA_Client_getEndpoints(client, UA_ClientConnectionTCP, url,
+        UA_Client_getEndpoints(client, url,
                 &endpointArraySize, &endpointArray);
 
     if(retval != UA_STATUSCODE_GOOD) {

@@ -89,8 +89,8 @@ int main(int argc, char** argv) {
   
   const bool detail = getenv("UAWRITE_DEBUG") ? true: false;
 
-  UA_Client *client = UA_Client_new(UA_ClientConfig_standard, Logger_Stdout);
-  UA_StatusCode retval = UA_Client_connect(client, UA_ClientConnectionTCP,url);
+  UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
+  UA_StatusCode retval = UA_Client_connect(client, url);
 
   //TODO: reconnect?
   if(retval!=UA_STATUSCODE_GOOD){
@@ -133,7 +133,7 @@ int main(int argc, char** argv) {
 
     int attempt=0;
     do{
-      retval=UA_Client_connect(client, UA_ClientConnectionTCP,url);
+      retval=UA_Client_connect(client, url);
       const UA_DataType* type;
       if(retval==UA_STATUSCODE_GOOD){
         retval=readTagType(client,&tag,&type);
